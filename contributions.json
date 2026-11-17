@@ -1,0 +1,55 @@
+{
+  "id": "github.com/frontierengineer/git-worktrees",
+  "title": "Git worktrees",
+  "color": "#e8590c",
+  "description": "Gives each workspace its own git worktree and branch beside a repository on a worker, and keeps its uncommitted work when it is unmounted.",
+  "worker": {
+    "workspaceProvisioner": {
+      "configuration": [
+        {
+          "type": "text",
+          "key": "repository",
+          "label": "Repository",
+          "description": "The git checkout on this worker that workspaces branch from, as an absolute path or starting with ~/.",
+          "required": true,
+          "placeholder": "~/code/project"
+        },
+        {
+          "type": "text",
+          "key": "remote",
+          "label": "Clone from",
+          "description": "A repository URL to clone into the repository path when nothing is there yet.",
+          "placeholder": "git@github.com:acme/project.git"
+        },
+        {
+          "type": "text",
+          "key": "base",
+          "label": "Base",
+          "description": "The branch or commit a new workspace starts from. Empty means the remote's default branch, or else the checkout's current commit.",
+          "placeholder": "origin/main"
+        },
+        {
+          "type": "text",
+          "key": "branchPrefix",
+          "label": "Branch prefix",
+          "description": "Put before each workspace's name to make its branch.",
+          "default": "frontier/"
+        },
+        {
+          "type": "text",
+          "key": "poolDirectory",
+          "label": "Worktree directory",
+          "description": "Where the worktrees live. Empty means a .frontier-worktrees directory beside the repository."
+        }
+      ],
+      "provisioning": {
+        "active": "Preparing a git worktree",
+        "slow": "Checking out the repository. A large repository takes a while."
+      },
+      "slots": {
+        "default": 4,
+        "note": "Each slot is a git worktree on disk, so each costs a checkout's worth of space."
+      }
+    }
+  }
+}
