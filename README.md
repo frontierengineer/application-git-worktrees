@@ -33,6 +33,28 @@ is kept under `refs/frontier/wip/<branch>`, or `refs/frontier/leftover/` when it
 was on no branch, before the worktree is reused. Git locks left behind by a
 killed git process are cleared once they are two minutes old.
 
+## Reviewing changes
+
+The Application also contributes **Changes**, a desktop and a panel that list
+every workspace mounted in a git worktree, with what changed in each. For the
+chosen workspace it shows the branch and where it tracks, each changed file
+with its diff, and the latest commits. A person commits every change with a
+message, or discards one file's changes after confirming, since that cannot be
+undone. Each mount is recorded in the Application's store under `mounted/`, and
+removed on unmount, so the views and methods know where each workspace is.
+
+The work is done by host methods that agents and other Applications call too,
+running git on the workspace's worker through the context's `workers.execute`:
+
+| Method | What it does |
+| --- | --- |
+| `list-workspaces` | Every workspace mounted in a git worktree. |
+| `workspace-status` | A workspace's branch, upstream, and every changed file with its kind. |
+| `workspace-diff` | One file's changes against its last commit, untracked files included. |
+| `workspace-log` | The branch's latest commits. |
+| `commit-workspace` | Commits every change, or the given files, with a message. |
+| `discard-changes` | Returns the given files to their last commit. |
+
 ## Configuration
 
 | Field | Meaning |
@@ -50,9 +72,11 @@ killed git process are cleared once they are two minutes old.
 | `contributions.json` | The Application as data: its provisioner, configuration fields and slots. |
 | `worker.ts` | The worker bundle's registration. |
 | `src/provisioner.ts` | The provisioner's hooks. |
+| `host.ts`, `src/review.ts` | The review methods. |
+| `surface.ts`, `src/view/` | The Changes desktop and panel. |
 | `src/git.ts` | Running git, with stale lock recovery. |
 | `translations.json` | Every message a person reads, by token. |
-| `test/` | Unit tests against real git repositories in temporary directories. |
+| `test/` | Unit tests against real git repositories in temporary directories, and a browser test of Changes. |
 
 ## Checking it
 
@@ -61,9 +85,10 @@ node scripts/check.mjs
 ```
 
 It type-checks the sources against a Frontier checkout's Application Interface,
-runs the tests with Node's test runner, and bundles `worker.ts` the way the Host
-does. It looks for the checkout at `../../frontier`, or at `FRONTIER_REPO`. It
-needs git and Node.js 22.6 or later.
+runs the tests with Node's test runner, and bundles each entry file the way the
+Host does. It looks for the checkout at `../../frontier`, or at `FRONTIER_REPO`,
+and runs the browser test with the checkout's Playwright. It needs git and
+Node.js 22.6 or later.
 
 ## License
 

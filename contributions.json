@@ -2,7 +2,7 @@
   "id": "github.com/frontierengineer/git-worktrees",
   "title": "Git worktrees",
   "color": "#e8590c",
-  "description": "Gives each workspace its own git worktree and branch beside a repository on a worker, and keeps its uncommitted work when it is unmounted.",
+  "description": "Gives each workspace its own git worktree and branch beside a repository on a worker, keeps its uncommitted work when it is unmounted, and shows what changed in it to review, commit or discard.",
   "worker": {
     "workspaceProvisioner": {
       "configuration": [
@@ -51,5 +51,69 @@
         "note": "Each slot is a git worktree on disk, so each costs a checkout's worth of space."
       }
     }
+  },
+  "surface": {
+    "desktop": {
+      "title": "Changes",
+      "description": "What changed in each mounted git workspace, to review, commit or discard.",
+      "icon": [
+        {
+          "d": "M6 4v12M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 8c0 5-6 4-11.5 8",
+          "kind": "outline"
+        }
+      ]
+    },
+    "panel": {
+      "title": "Changes",
+      "description": "What changed in each mounted git workspace.",
+      "icon": [
+        {
+          "d": "M6 4v12M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 8c0 5-6 4-11.5 8",
+          "kind": "outline"
+        }
+      ],
+      "minWidth": 360
+    },
+    "actions": [
+      {
+        "id": "review-changes",
+        "title": "Review changes",
+        "description": "Opens Changes, which shows what changed in each mounted git workspace."
+      }
+    ]
+  },
+  "host": {
+    "methods": [
+      {
+        "id": "list-workspaces",
+        "title": "List git workspaces",
+        "description": "Every workspace mounted in a git worktree by this provisioner. Input: none. Answers { workspaces: [{ workspaceId, name, branch, workerId, slotDirectory, repository, workspaceProvisionerId, mountedAt }] }, most recently mounted first."
+      },
+      {
+        "id": "workspace-status",
+        "title": "Workspace status",
+        "description": "What changed in a mounted git workspace. Input: workspaceId (string). Answers { workspace, branch, upstream, ahead, behind, files: [{ path, originalPath, kind, staged }] }, where kind is modified, added, deleted, renamed, copied, untracked, conflicted or type-changed."
+      },
+      {
+        "id": "workspace-diff",
+        "title": "Workspace diff",
+        "description": "One file's changes in a mounted git workspace against its last commit, as a unified diff; an untracked file shows as wholly added. Input: workspaceId and path (strings, the path relative to the workspace). Answers { diff, truncated }, cut at 400 KB."
+      },
+      {
+        "id": "workspace-log",
+        "title": "Workspace log",
+        "description": "The latest commits of a mounted git workspace's branch, newest first. Input: workspaceId (string), limit (number, default 30, at most 200). Answers { commits: [{ hash, shortHash, author, at, subject }] }."
+      },
+      {
+        "id": "commit-workspace",
+        "title": "Commit workspace",
+        "description": "Commits changes in a mounted git workspace to its branch, untracked files included, with the worker's own git identity and hooks. Input: workspaceId (string), message (string, required), paths (strings relative to the workspace; every change when left out). Answers { commit, files }."
+      },
+      {
+        "id": "discard-changes",
+        "title": "Discard changes",
+        "description": "Throws away the uncommitted changes to the given files in a mounted git workspace, returning them to their last commit and deleting untracked ones. This cannot be undone. Input: workspaceId (string), paths (strings relative to the workspace, required). Answers { discarded }."
+      }
+    ]
   }
 }

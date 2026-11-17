@@ -26,6 +26,7 @@ import type {
 } from '../../application';
 import { GitError, git, gitOk, runGit } from './git.ts';
 import { failure, text } from './text.ts';
+import { type MountedWorkspace, mountedKey } from './records.ts';
 
 export interface Settings {
   repository: string;
@@ -397,6 +398,18 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
         }
         const restored = await restoreSaved(directory, branch);
         await writeRecord(settings.repository, directory, { branch, workspaceId: input.workspaceId, name: input.name });
+        const record: MountedWorkspace = {
+          workspaceId: input.workspaceId,
+          name: input.name,
+          branch,
+          workerId: context.currentWorker.id,
+          slotDirectory: directory,
+          repository: settings.repository,
+          workspaceProvisionerId: input.workspaceProvisioner.id,
+          mountedAt: Date.now(),
+        };
+        const remembered = await context.store.putJson({ key: mountedKey(input.workspaceId), value: record });
+        if (!remembered.ok) void context.logger.warn('The mounted workspace was not recorded for review', { workspaceId: input.workspaceId, reason: remembered.message });
         return { slotDirectory: directory, display: await display(directory, branch, restored) };
       } catch (error) {
         return gitFailure('error.mount_failed', { name: input.name, repository: settings.repository }, error);
@@ -421,6 +434,7 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
         }
         await cleanSlot(directory);
         await forgetRecord(settings.repository, directory);
+        await context.store.delete(mountedKey(input.workspaceId));
       } catch (error) {
         return gitFailure('error.unmount_failed', { path: directory }, error);
       }

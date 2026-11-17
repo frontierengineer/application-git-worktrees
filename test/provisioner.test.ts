@@ -7,11 +7,12 @@ import { registration } from '../worker.ts';
 import { branchFor } from '../src/provisioner.ts';
 import { fakeContext, instance, makeRepository, sh } from './context.ts';
 
-function provisioner(): { impl: WorkspaceProvisionerImplementation; base: string; repository: string; logs: { level: string; message: string }[] } {
+function provisioner(): { impl: WorkspaceProvisionerImplementation; base: string; repository: string; logs: { level: string; message: string }[]; stored: (key: string) => unknown } {
   const { context, base, logs } = fakeContext();
   const impl = registration.workspaceProvisioner.mount(context);
   assert.ok(!('ok' in impl));
-  return { impl: impl as WorkspaceProvisionerImplementation, base, repository: makeRepository(base), logs };
+  const stored = (key: string) => (context.store as unknown as { peek(key: string): unknown }).peek(key);
+  return { impl: impl as WorkspaceProvisionerImplementation, base, repository: makeRepository(base), logs, stored };
 }
 
 function failureOf(answer: unknown): Failure {
@@ -32,14 +33,26 @@ const mountInput = (repository: string, name: string, extra: Partial<{ activeSlo
   base: extra.base ?? null,
 });
 
-test('mount gives a new name its own branch in a worktree beside the repository', async () => {
-  const { impl, base, repository } = provisioner();
+test('mount gives a new name its own branch in a worktree beside the repository, and records it for review until unmount', async () => {
+  const { impl, base, repository, stored } = provisioner();
   const slot = slotOf(await impl.mount(mountInput(repository, 'feature-x')));
+  assert.deepEqual({ ...(stored('mounted/ws-feature-x') as Record<string, unknown>), mountedAt: 0 }, {
+    workspaceId: 'ws-feature-x',
+    name: 'feature-x',
+    branch: 'frontier/feature-x',
+    workerId: 'worker-1',
+    slotDirectory: slot.slotDirectory,
+    repository,
+    workspaceProvisionerId: 'instance-1',
+    mountedAt: 0,
+  });
   assert.equal(slot.slotDirectory, join(base, '.frontier-worktrees', 'project', 'slot-1'));
   assert.equal(sh(slot.slotDirectory, 'git', 'symbolic-ref', '--short', 'HEAD').trim(), 'frontier/feature-x');
   assert.deepEqual(slot.display.map((entry) => entry.label), ['Branch', 'Commit']);
   assert.equal(slot.display[0]?.value, 'frontier/feature-x');
   assert.equal(readFileSync(join(slot.slotDirectory, 'a.txt'), 'utf8'), 'one\n');
+  await impl.unmount({ workspaceId: 'ws-feature-x', workspaceProvisioner: instance({ repository }), slot });
+  assert.equal(stored('mounted/ws-feature-x'), undefined);
 });
 
 test('unmount keeps uncommitted work and a later mount of the name brings it back uncommitted', async () => {

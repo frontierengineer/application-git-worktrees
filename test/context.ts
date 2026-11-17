@@ -16,8 +16,21 @@ export function fakeContext(): { context: WorkspaceProvisionerContext; logs: Log
   };
   mkdirSync(join(base, 'private'));
   mkdirSync(join(base, 'scratch'));
+  const store = new Map<string, unknown>();
   const context = {
     applicationId: 'github.com/frontierengineer/git-worktrees',
+    currentWorker: { id: 'worker-1', title: () => 'Laptop', isConnected: () => true },
+    store: {
+      putJson: async (options: { key: string; value: unknown }) => {
+        store.set(options.key, options.value);
+        return { ok: true, value: undefined };
+      },
+      delete: async (key: string) => {
+        store.delete(key);
+        return { ok: true, value: undefined };
+      },
+      peek: (key: string) => store.get(key),
+    },
     directories: { private: join(base, 'private'), scratch: join(base, 'scratch') },
     translate: (token: string) => translations.en?.[token] ?? token,
     logger: { debug: log('debug'), info: log('info'), warn: log('warn'), error: log('error') },
