@@ -138,15 +138,28 @@ function slotNumber(path: string): number {
   return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
 }
 
+// listSlots() and measure() answer within a call's wait, so a worktree too
+// large to measure in this long is reported with no size.
+const measureTimeoutMilliseconds = 10_000;
+
 async function directorySizeBytes(paths: readonly string[]): Promise<number | null> {
   const existing = paths.filter((path) => existsSync(path));
   if (existing.length === 0) return 0;
   return new Promise((done) => {
     const child = spawn('du', ['-sk', ...existing], { stdio: ['ignore', 'pipe', 'ignore'] });
     let out = '';
+    const deadline = setTimeout(() => child.kill('SIGKILL'), measureTimeoutMilliseconds);
     child.stdout.on('data', (chunk: Buffer) => (out += chunk.toString('utf8')));
-    child.on('error', () => done(null));
-    child.on('close', () => {
+    child.on('error', () => {
+      clearTimeout(deadline);
+      done(null);
+    });
+    child.on('close', (code) => {
+      clearTimeout(deadline);
+      if (code === null) {
+        done(null);
+        return;
+      }
       const sizes = out.split('\n').map((line) => Number(line.split('\t')[0])).filter((value) => Number.isFinite(value) && value >= 0);
       done(sizes.length === 0 ? null : sizes.reduce((total, kib) => total + kib * 1024, 0));
     });
@@ -173,6 +186,11 @@ class Mutex {
 
 type Answer<T> = T | Failure | Unavailable;
 
+// A clone of a large repository over a slow link takes a long while.
+const cloneTimeoutMilliseconds = 60 * 60 * 1000;
+// checkSlot(), listSlots() and measure() answer within a call's wait.
+const checkTimeoutMilliseconds = 10_000;
+
 export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContext): WorkspaceProvisionerImplementation {
   const mutex = new Mutex();
   const sizeCache = new Map<string, { at: number; size: number | null }>();
@@ -181,7 +199,7 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
   const settingsOrFailure = (instance: WorkspaceProvisionerInstance): Settings | Failure =>
     settingsOf(instance) ?? failure(t('error.repository_required'), false, 'repository');
 
-  const isRepository = async (path: string) => existsSync(path) && (await gitOk(['rev-parse', '--is-inside-work-tree'], { cwd: path }));
+  const isRepository = async (path: string) => existsSync(path) && (await gitOk(['rev-parse', '--is-inside-work-tree'], { cwd: path, timeoutMilliseconds: checkTimeoutMilliseconds }));
 
   async function ensureRepository(settings: Settings): Promise<Failure | null> {
     if (await isRepository(settings.repository)) return null;
@@ -192,7 +210,7 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
       return failure(t('error.clone_target_busy', { repository: settings.repository }), false, 'repository');
     }
     await mkdir(dirname(settings.repository), { recursive: true });
-    const run = await runGit(['clone', '--quiet', settings.remote, settings.repository], { cwd: dirname(settings.repository) });
+    const run = await runGit(['clone', '--quiet', settings.remote, settings.repository], { cwd: dirname(settings.repository), timeoutMilliseconds: cloneTimeoutMilliseconds });
     if (run.code !== 0) {
       return failure(t('error.clone_failed', { remote: settings.remote, repository: settings.repository, reason: new GitError([], run).message }), true, 'remote');
     }
@@ -468,7 +486,7 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
   async function checkSlot(input: ProvisionerSlotCheckInput): Promise<Answer<SlotCheckResult>> {
     const directory = input.slot.slotDirectory;
     if (directory === '') return { present: true };
-    if (existsSync(directory) && (await gitOk(['rev-parse', '--is-inside-work-tree'], { cwd: directory }))) return { present: true };
+    if (existsSync(directory) && (await gitOk(['rev-parse', '--is-inside-work-tree'], { cwd: directory, timeoutMilliseconds: checkTimeoutMilliseconds }))) return { present: true };
     const settings = settingsOrFailure(input.workspaceProvisioner);
     if ('ok' in settings) return settings;
     if (await isRepository(settings.repository)) return { present: false };
@@ -537,22 +555,22 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
   }
 
   async function commitTime(repository: string, ref: string): Promise<number | null> {
-    const run = await runGit(['log', '-1', '--format=%ct', ref], { cwd: repository });
+    const run = await runGit(['log', '-1', '--format=%ct', ref], { cwd: repository, timeoutMilliseconds: checkTimeoutMilliseconds });
     const seconds = Number(run.stdout.trim());
     return run.code === 0 && Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
   }
 
   async function savedBytes(repository: string, ref: string): Promise<number> {
-    const run = await runGit(['diff-tree', '-r', '--no-commit-id', `${ref}^`, ref], { cwd: repository });
+    const run = await runGit(['diff-tree', '-r', '--no-commit-id', `${ref}^`, ref], { cwd: repository, timeoutMilliseconds: checkTimeoutMilliseconds });
     if (run.code !== 0) return 0;
     const blobs = run.stdout.split('\n').map((line) => line.split(' ')[3]).filter((blob): blob is string => !!blob && !/^0+$/.test(blob));
     if (blobs.length === 0) return 0;
-    const sizes = await runGit(['cat-file', '--batch-check=%(objectsize)'], { cwd: repository, input: `${blobs.join('\n')}\n` });
+    const sizes = await runGit(['cat-file', '--batch-check=%(objectsize)'], { cwd: repository, input: `${blobs.join('\n')}\n`, timeoutMilliseconds: checkTimeoutMilliseconds });
     return sizes.stdout.split('\n').map(Number).filter(Number.isFinite).reduce((total, size) => total + size, 0);
   }
 
   async function newestChange(directory: string): Promise<number | null> {
-    const status = await runGit(['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: directory });
+    const status = await runGit(['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: directory, timeoutMilliseconds: checkTimeoutMilliseconds });
     let newest: number | null = null;
     for (const entry of status.stdout.split('\0')) {
       const path = entry.slice(3);
@@ -574,7 +592,7 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
     const branch = branchFor(settings.branchPrefix, input.name);
     const tip = await commitTime(settings.repository, `refs/heads/${branch}`);
     const saved = `refs/frontier/wip/${branch}`;
-    const hasSaved = await gitOk(['rev-parse', '--verify', '--quiet', saved], { cwd: settings.repository });
+    const hasSaved = await gitOk(['rev-parse', '--verify', '--quiet', saved], { cwd: settings.repository, timeoutMilliseconds: checkTimeoutMilliseconds });
     if (input.slot !== null && input.slot.slotDirectory !== '' && existsSync(input.slot.slotDirectory)) {
       const changed = await newestChange(input.slot.slotDirectory);
       const times = [tip, changed].filter((time): time is number => time !== null);

@@ -12,7 +12,12 @@ export interface GitOptions {
   cwd: string;
   env?: Record<string, string>;
   input?: string;
+  // Killed when it runs longer. Default 10 minutes, so a git that hangs (a
+  // stalled network disk, a hook waiting on input) never holds the repository.
+  timeoutMilliseconds?: number;
 }
+
+const defaultTimeoutMilliseconds = 10 * 60 * 1000;
 
 const quiet = {
   GIT_TERMINAL_PROMPT: '0',
@@ -34,8 +39,14 @@ export function runGit(args: readonly string[], options: GitOptions): Promise<Gi
     const settle = (run: GitRun) => {
       if (settled) return;
       settled = true;
+      clearTimeout(deadline);
       done(run);
     };
+    const limit = options.timeoutMilliseconds ?? defaultTimeoutMilliseconds;
+    const deadline = setTimeout(() => {
+      child.kill('SIGKILL');
+      settle({ code: null, stdout: '', stderr: `git ${args[0] ?? ''} did not finish within ${Math.round(limit / 1000)} s` });
+    }, limit);
     child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => err.push(chunk));
     child.on('error', (error) => settle({ code: null, stdout: '', stderr: error.message }));
