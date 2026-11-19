@@ -1,4 +1,4 @@
-import type { DesktopContext } from '../../../application';
+import type { PanelContext } from '../../../application';
 import { registration } from '../../surface.ts';
 import translations from '../../translations.json';
 
@@ -58,11 +58,11 @@ const context = {
       return ok({ unsubscribe() {} });
     },
   },
-} as unknown as DesktopContext;
+} as unknown as PanelContext;
 
 Object.assign(window, {
   calls,
-  mountView: () => registration.desktop.mount(context),
-  mountPanel: () => registration.panel.mount(context),
+  mountView: () => registration.panels.changes.mount(context),
+  mountPanel: () => registration.panels['changes-compact'].mount(context),
   setConfirm: (value: boolean) => (confirmAnswer = value),
 });

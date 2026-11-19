@@ -63,7 +63,7 @@ for (const mode of ['dark', 'light'] as const) {
     await page.locator('summary', { hasText: 'login.ts' }).first().click();
     await page.locator('.diff [data-sign="+"]').first().waitFor();
     assert.equal(await page.locator('.diff [data-sign="+"]').first().textContent(), '+await page.waitForURL("/home");');
-    if (shots) await page.screenshot({ path: join(shots, `changes-desktop-${mode}.png`) });
+    if (shots) await page.screenshot({ path: join(shots, `changes-wide-${mode}.png`) });
 
     await page.evaluate('window.setConfirm(false)');
     await page.getByRole('button', { name: 'Discard changes' }).first().click();
@@ -87,13 +87,13 @@ for (const mode of ['dark', 'light'] as const) {
     assert.deepEqual(commit?.input, { workspaceId: 'ws-1', message: 'Add the login test' });
   });
 
-  test(`Changes on a panel lists the workspaces, then shows one with a way back (${mode})`, { skip }, async () => {
+  test(`Changes one at a time lists the workspaces, then shows one with a way back (${mode})`, { skip }, async () => {
     const page = await open(mode, { width: 390, height: 844 }, 'window.mountPanel()');
     await page.locator('frontier-tree li').first().waitFor();
-    if (shots) await page.screenshot({ path: join(shots, `changes-panel-list-${mode}.png`) });
+    if (shots) await page.screenshot({ path: join(shots, `changes-compact-list-${mode}.png`) });
     await page.getByText('fix-login').first().click();
     await page.getByRole('heading', { name: 'fix-login' }).waitFor();
-    if (shots) await page.screenshot({ path: join(shots, `changes-panel-workspace-${mode}.png`) });
+    if (shots) await page.screenshot({ path: join(shots, `changes-compact-workspace-${mode}.png`) });
     await page.getByRole('button', { name: 'Back to workspaces' }).click();
     await page.locator('frontier-tree li').first().waitFor();
   });

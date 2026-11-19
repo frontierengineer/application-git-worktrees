@@ -53,32 +53,40 @@
     }
   },
   "surface": {
-    "desktop": {
-      "title": "Changes",
-      "description": "What changed in each mounted git workspace, to review, commit or discard.",
-      "icon": [
-        {
-          "d": "M6 4v12M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 8c0 5-6 4-11.5 8",
-          "kind": "outline"
-        }
-      ]
-    },
-    "panel": {
-      "title": "Changes",
-      "description": "What changed in each mounted git workspace.",
-      "icon": [
-        {
-          "d": "M6 4v12M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 8c0 5-6 4-11.5 8",
-          "kind": "outline"
-        }
-      ],
-      "minWidth": 360
-    },
+    "panels": [
+      {
+        "id": "changes",
+        "title": "Changes",
+        "description": "What changed in each mounted git workspace, beside the list of them, to review, commit or discard.",
+        "icon": [
+          {
+            "d": "M6 4v12M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 8c0 5-6 4-11.5 8",
+            "kind": "outline"
+          }
+        ],
+        "minWidth": 640,
+        "minHeight": 360,
+        "inputs": ["pointer"]
+      },
+      {
+        "id": "changes-compact",
+        "title": "Changes, one at a time",
+        "description": "The mounted git workspaces, then what changed in the one you choose.",
+        "icon": [
+          {
+            "d": "M6 4v12M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 8c0 5-6 4-11.5 8",
+            "kind": "outline"
+          }
+        ],
+        "minWidth": 320,
+        "minHeight": 320
+      }
+    ],
     "actions": [
       {
         "id": "review-changes",
         "title": "Review changes",
-        "description": "Opens Changes, which shows what changed in each mounted git workspace."
+        "description": "Brings Changes forward in the deck shown, which shows what changed in each mounted git workspace."
       }
     ]
   },

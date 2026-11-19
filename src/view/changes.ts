@@ -1,4 +1,4 @@
-import type { DesktopContext, PanelContext, Result, Subscription } from '../../../application';
+import type { PanelContext, Result, Subscription } from '../../../application';
 import type { CommitOutcome, MountedWorkspace } from '../records.ts';
 import type { ChangedFile, Commit, CommitMessage, WorkspaceStatus } from '../review.ts';
 import { text } from '../text.ts';
@@ -34,11 +34,14 @@ function pathElement(path: string): HTMLElement {
   );
 }
 
+/** Wide shows the list beside the workspace chosen; compact shows one, then the other. */
+export type Layout = 'wide' | 'compact';
+
 type Committing = { workspaceId: string; sawCommitting: boolean; subscription: Subscription | null; step: string };
 
 export class ChangesApp {
-  private readonly context: DesktopContext | PanelContext;
-  private readonly layout: 'desktop' | 'panel';
+  private readonly context: PanelContext;
+  private readonly layout: Layout;
   private workspaces: MountedWorkspace[] = [];
   private statuses = new Map<string, WorkspaceStatus>();
   private workerTitles = new Map<string, string>();
@@ -58,7 +61,7 @@ export class ChangesApp {
   private readonly message = h('textarea', { name: 'message', rows: '3' });
   private readonly openDiffs = new Set<string>();
 
-  constructor(context: DesktopContext | PanelContext, layout: 'desktop' | 'panel') {
+  constructor(context: PanelContext, layout: Layout) {
     this.context = context;
     this.layout = layout;
     this.selected = context.surfacePreferences.get<string | null>('selected', null);
@@ -78,9 +81,9 @@ export class ChangesApp {
         h('frontier-scroll', {}, h('frontier-stack', { padding: '2', gap: '2' }, this.tree)),
       ),
     );
-    this.root = layout === 'desktop'
-      ? h('frontier-split', { class: 'changes desktop' }, this.nav, h('hr'), this.detail)
-      : h('div', { class: 'changes panel' });
+    this.root = layout === 'wide'
+      ? h('frontier-split', { class: 'changes wide' }, this.nav, h('hr'), this.detail)
+      : h('div', { class: 'changes compact' });
   }
 
   private readonly t = (token: string, values: Record<string, string | number> = {}): string => text(this.context, token, values);
@@ -137,7 +140,7 @@ export class ChangesApp {
     this.statuses.clear();
     for (const [id, status] of statuses) if (status.ok) this.statuses.set(id, status.value);
     if (this.selected !== null && !this.workspaces.some((workspace) => workspace.workspaceId === this.selected)) this.selected = null;
-    if (this.selected === null && this.layout === 'desktop') this.selected = this.workspaces[0]?.workspaceId ?? null;
+    if (this.selected === null && this.layout === 'wide') this.selected = this.workspaces[0]?.workspaceId ?? null;
     if (this.selected) {
       const log = await this.call<{ commits: Commit[] }>('workspace-log', { workspaceId: this.selected, limit: 15 });
       this.log = log.ok ? log.value.commits : [];
@@ -199,7 +202,7 @@ export class ChangesApp {
     } else if (workspace) {
       this.drawWorkspace(workspace);
     }
-    if (this.layout === 'panel') fill(this.root, workspace || this.workspaces.length === 0 ? this.detail : this.nav);
+    if (this.layout === 'compact') fill(this.root, workspace || this.workspaces.length === 0 ? this.detail : this.nav);
   }
 
   private drawWorkspace(workspace: MountedWorkspace): void {
@@ -214,7 +217,7 @@ export class ChangesApp {
     this.message.disabled = files.length === 0 || busy;
     fill(this.detail, h('frontier-stack', { fill: true, gap: '0' },
       h('frontier-row', { padding: '4', gap: '3' },
-        this.layout === 'panel' ? h('button', { type: 'button', 'data-variant': 'ghost', 'aria-label': t('changes.back'), onclick: () => this.select(null) }, icon(...backIcon)) : null,
+        this.layout === 'compact' ? h('button', { type: 'button', 'data-variant': 'ghost', 'aria-label': t('changes.back'), onclick: () => this.select(null) }, icon(...backIcon)) : null,
         h('frontier-stack', { gap: '1' },
           h('h2', {}, workspace.name),
           h('frontier-row', { wrap: true, gap: '2' },
@@ -377,6 +380,6 @@ export class ChangesApp {
   }
 }
 
-export function mountChanges(context: DesktopContext | PanelContext, layout: 'desktop' | 'panel'): Promise<void> {
+export function mountChanges(context: PanelContext, layout: Layout): Promise<void> {
   return new ChangesApp(context, layout).start();
 }

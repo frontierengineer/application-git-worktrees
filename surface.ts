@@ -2,14 +2,16 @@ import type { ActionContext, SurfaceRegistration } from '../application';
 import { mountChanges } from './src/view/changes.ts';
 
 async function reviewChanges(context: ActionContext) {
-  const desktop = await context.desktop.focus();
-  if (desktop.ok || !desktop.unavailable) return desktop.ok ? undefined : desktop;
-  const panel = await context.panel.open();
-  return panel.ok ? undefined : panel;
+  const wide = await context.panels.reveal('changes');
+  if (wide.ok || !wide.unavailable) return wide.ok ? undefined : wide;
+  const compact = await context.panels.reveal('changes-compact');
+  return compact.ok || compact.unavailable ? undefined : compact;
 }
 
 export const registration = {
-  desktop: { mount: (context) => mountChanges(context, 'desktop') },
-  panel: { mount: (context) => mountChanges(context, 'panel') },
+  panels: {
+    changes: { mount: (context) => mountChanges(context, 'wide') },
+    'changes-compact': { mount: (context) => mountChanges(context, 'compact') },
+  },
   actions: { 'review-changes': { run: (context) => reviewChanges(context) } },
 } satisfies SurfaceRegistration;

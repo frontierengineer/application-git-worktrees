@@ -42,16 +42,18 @@ killed git process are cleared once they are two minutes old.
 
 ## Reviewing changes
 
-The Application also contributes **Changes**, a desktop and a panel that list
-every workspace mounted in a git worktree, with what changed in each. For the
+The Application also contributes **Changes**, two panels a person places in a
+deck that list every workspace mounted in a git worktree, with what changed in each. For the
 chosen workspace it shows the branch and where it tracks, each changed file
 with its diff, and the latest commits. A person commits every change with a
 message, or discards one file's changes after confirming, since that cannot be
 undone. Each mount is recorded in the Application's store under `mounted/`, and
 removed on unmount, so the views and methods know where each workspace is.
 Changes is plain HTML and `frontier-*` elements, drawn by Frontier's Design
-System in the person's own appearance; on a panel it shows the list, then one
-workspace.
+System in the person's own appearance. The wide panel needs a pointer and at
+least 640 by 360 pixels, and shows the list beside the chosen workspace; the
+one-at-a-time panel fits 320 by 320 and works by touch, showing the list, then
+one workspace.
 
 The work is done by host methods that agents and other Applications call too,
 running git on the workspace's worker through the context. A read is cut at 20
@@ -89,7 +91,7 @@ leaves; `workspace-status` reports how the last one ended.
 | `worker.ts` | The worker bundle's registration. |
 | `src/provisioner.ts` | The provisioner's hooks. |
 | `host.ts`, `src/review.ts` | The review methods. |
-| `surface.ts`, `src/view/` | The Changes desktop and panel. |
+| `surface.ts`, `src/view/` | The two Changes panels. |
 | `src/git.ts` | Running git, with stale lock recovery. |
 | `translations.json` | Every message a person reads, by token. |
 | `test/` | Unit tests against real git repositories in temporary directories, and a browser test of Changes. |
@@ -110,7 +112,7 @@ at `FRONTIER_REPO`, and borrows TypeScript, esbuild, Playwright and Node's types
 so that checkout's dependencies must be installed. It needs Node.js 22.6 or
 later and git. No test reaches the network; the tests work on real git repositories in a temporary directory.
 
-The browser test draws Changes, on a desktop and on a panel, inside the Design
+The browser test draws both Changes panels inside the Design
 System the checkout provides, in the dark and the light scheme; with
 `VIEW_SHOTS=<directory>` it keeps a screenshot of each.
 
