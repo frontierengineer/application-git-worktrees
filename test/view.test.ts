@@ -77,7 +77,7 @@ for (const mode of ['dark', 'light'] as const) {
     await page.getByText('Write a commit message to commit.').waitFor();
     await page.getByLabel('Commit message').fill('fail');
     await page.getByRole('button', { name: 'Commit 1 change' }).click();
-    await page.getByText('Git refused: Author identity unknown.').waitFor();
+    await page.getByText('Git refused: the pre-commit hook failed.').waitFor();
     await page.getByLabel('Commit message').fill('Add the login test');
     await page.getByRole('button', { name: 'Commit 1 change' }).click();
     await page.getByText('Committed bbbbbbb with 1 changed files.').waitFor();

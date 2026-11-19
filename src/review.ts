@@ -50,6 +50,7 @@ async function workspaceOf(context: BaseApplicationContext, workspaceId: unknown
 }
 
 function refused(context: BaseApplicationContext, stdout: string, stderr: string, exitCode: number | null): Failure {
+  if (/Author identity unknown|Please tell me who you are|empty ident name/i.test(stderr)) return failure(t(context, 'review.no_identity'), false);
   const reason = firstLine(stderr) || firstLine(stdout) || (exitCode === null ? t(context, 'review.git_stopped') : `exit code ${exitCode}`);
   return failure(t(context, 'review.git_failed', { reason }), false);
 }

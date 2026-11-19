@@ -76,6 +76,7 @@
     "review.git_failed": "Git refused: {reason}.",
     "review.git_stopped": "git stopped before it finished",
     "review.message_required": "Write a commit message.",
+    "review.no_identity": "Git has no name and email to commit with on this worker. Set them there with `git config --global user.name` and `git config --global user.email`, then commit again.",
     "review.not_mounted": "That workspace is not mounted in a git worktree. Mount it, then try again.",
     "review.nothing_to_commit": "There is nothing to commit. Every change is already committed.",
     "review.path_required": "Name the file, relative to the workspace.",

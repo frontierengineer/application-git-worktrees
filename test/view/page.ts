@@ -46,7 +46,7 @@ const context = {
         handler({ state: 'started' });
         setTimeout(() => {
           if (input.message === 'fail') {
-            handler({ state: 'failed', message: 'Git refused: Author identity unknown.' });
+            handler({ state: 'failed', message: 'Git refused: the pre-commit hook failed.' });
             return;
           }
           const count = files.length;

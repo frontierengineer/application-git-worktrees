@@ -18,7 +18,9 @@ function setup() {
   store.set(mountedKey('ws-1'), { workspaceId: 'ws-1', name: 'task', branch: 'main', workerId: 'w1', slotDirectory: repository, repository, workspaceProvisionerId: 'p', mountedAt: 5 });
   store.set(mountedKey('ws-gone'), { workspaceId: 'ws-gone', name: 'gone', branch: 'x', workerId: 'w1', slotDirectory: join(base, 'missing'), repository, workspaceProvisionerId: 'p', mountedAt: 9 });
   const executed: { workerId: string; args: string[]; spawned: boolean }[] = [];
-  const identity = { GIT_AUTHOR_NAME: 'Test', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 'Test', GIT_COMMITTER_EMAIL: 't@example.com' };
+  let identity: Record<string, string> = { GIT_AUTHOR_NAME: 'Test', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 'Test', GIT_COMMITTER_EMAIL: 't@example.com' };
+  // A worker whose git has no name or email anywhere.
+  const forgetIdentity = () => { identity = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }; };
   type Options = { command: string; args: string[]; cwd: string; environment: Record<string, string> };
   const missing = (cwd: string) => ({ ok: false, message: `${cwd} does not exist on this worker.`, retriable: false });
   const context = {
@@ -74,7 +76,7 @@ function setup() {
     await end;
     return messages;
   };
-  return { repository, call, commit, executed, store };
+  return { repository, call, commit, executed, store, forgetIdentity };
 }
 
 test('status lists every kind of change, and a diff shows a file against its last commit', async () => {
@@ -129,6 +131,17 @@ test('a commit a hook refuses is published as failed, in the hook\'s words', asy
   writeFileSync(join(repository, 'a.txt'), 'changed\n');
   const messages = await commit({ workspaceId: 'ws-1', message: 'Try' });
   assert.deepEqual(messages, [{ state: 'started' }, { state: 'failed', message: 'Git refused: lint failed in a.txt.' }]);
+});
+
+test('a worker with no git identity is told how to set one', async () => {
+  const { repository, commit, forgetIdentity } = setup();
+  writeFileSync(join(repository, 'a.txt'), 'changed\n');
+  forgetIdentity();
+  sh(repository, 'git', 'config', 'user.useConfigOnly', 'true');
+  sh(repository, 'git', 'config', '--unset', 'user.name');
+  sh(repository, 'git', 'config', '--unset', 'user.email');
+  const messages = await commit({ workspaceId: 'ws-1', message: 'Try' });
+  assert.deepEqual(messages, [{ state: 'started' }, { state: 'failed', message: translations.en['review.no_identity'] }]);
 });
 
 test('commit can take only some files', async () => {
