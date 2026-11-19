@@ -5,6 +5,9 @@ and branch beside a repository on a worker. It is one of Frontier's Initial
 Applications, written against Frontier's Application Interface
 (`interfaces/application.d.ts`) like any other Application.
 
+Its id is `github.com/frontierengineer/application-git-worktrees`, the repository it
+is published from.
+
 ## What it does
 
 A person sets the provisioner up once for each repository on each worker, with
@@ -24,9 +27,13 @@ a number of slots. Each slot is a git worktree in a pool beside the repository.
   and the worktree is not. When it cannot tell, it answers a failure.
 - **Provision** fills the pool up to its slot count with free, detached worktrees.
 - **List slots** and **measure** report each worktree's branch, commit, size and
-  last change.
+  last change, within a call's wait: what cannot be read in 10 seconds is
+  reported as unknown.
 - **Teardown** removes every free worktree. It never touches the repository
   itself or any branch.
+
+Every git run has a deadline, so a git that hangs never holds the repository:
+an hour for a clone, 10 minutes for anything else.
 
 Nothing is ever thrown away silently. Uncommitted work found in a free worktree
 is kept under `refs/frontier/wip/<branch>`, or `refs/frontier/leftover/` when it
@@ -42,9 +49,16 @@ with its diff, and the latest commits. A person commits every change with a
 message, or discards one file's changes after confirming, since that cannot be
 undone. Each mount is recorded in the Application's store under `mounted/`, and
 removed on unmount, so the views and methods know where each workspace is.
+Changes is plain HTML and `frontier-*` elements, drawn by Frontier's Design
+System in the person's own appearance; on a panel it shows the list, then one
+workspace.
 
 The work is done by host methods that agents and other Applications call too,
-running git on the workspace's worker through the context's `workers.execute`:
+running git on the workspace's worker through the context. A read is cut at 20
+seconds, inside the 30 seconds a call waits. A commit runs the repository's
+hooks, which can take longer, so `commit-workspace` is a publication: it says
+it started at once, then how it ended, and runs to its end if its subscriber
+leaves; `workspace-status` reports how the last one ended.
 
 | Method | What it does |
 | --- | --- |
@@ -52,7 +66,7 @@ running git on the workspace's worker through the context's `workers.execute`:
 | `workspace-status` | A workspace's branch, upstream, and every changed file with its kind. |
 | `workspace-diff` | One file's changes against its last commit, untracked files included. |
 | `workspace-log` | The branch's latest commits. |
-| `commit-workspace` | Commits every change, or the given files, with a message. |
+| `commit-workspace` | A subscription: commits every change, or the given files, with a message, publishing `started`, then `committed` or `failed`. |
 | `discard-changes` | Returns the given files to their last commit. |
 
 ## Configuration
@@ -78,18 +92,33 @@ running git on the workspace's worker through the context's `workers.execute`:
 | `translations.json` | Every message a person reads, by token. |
 | `test/` | Unit tests against real git repositories in temporary directories, and a browser test of Changes. |
 
-## Checking it
+## Developing
+
+The Application is checked the way it ships, against a Frontier checkout:
 
 ```sh
-node scripts/check.mjs
+npm test            # or: node scripts/check.mjs
 ```
 
-It type-checks the sources against a Frontier checkout's Application Interface,
-runs the tests with Node's test runner, and bundles each entry file the way the
-Host does. It looks for the checkout at `../../frontier`, or at `FRONTIER_REPO`,
-and runs the browser test with the checkout's Playwright. It needs git and
-Node.js 22.6 or later.
+It type-checks every bundle against the checkout's Application Interface
+(`interfaces/application.d.ts`), runs the tests with Node's test runner, and
+bundles each entry file the way the Host does. It finds the checkout at
+`../../frontier` (a `frontier` beside the directory holding this repository), or
+at `FRONTIER_REPO`, and borrows TypeScript, esbuild, Playwright and Node's types from it,
+so that checkout's dependencies must be installed. It needs Node.js 22.6 or
+later and git. No test reaches the network; the tests work on real git repositories in a temporary directory.
+
+The browser test draws Changes, on a desktop and on a panel, inside the Design
+System the checkout provides, in the dark and the light scheme; with
+`VIEW_SHOTS=<directory>` it keeps a screenshot of each.
+
+To try it in Frontier itself, put this repository in the `applications`
+directory beside a Frontier checkout, as `git-worktrees`; a Source Build of that
+checkout carries every Application there as an Initial Application, so a new
+install starts with it. From the checkout, `bash modcon/scripts/tool.sh ui
+--remake --applications <that directory>` makes the Electron app with them and
+photographs it.
 
 ## License
 
-MIT
+MIT, as `LICENSE` states.
