@@ -58,8 +58,8 @@ running git on the workspace's worker through the context. A read is cut at 20
 seconds, inside the 30 seconds a call waits: the git is killed, and the answer
 says what did not finish and whether trying again can help. A commit runs the repository's
 hooks, which can take longer, so `commit-workspace` is a publication: it says
-it started at once, then each step (adding, then committing, naming the hooks
-that run), then how it ended, and runs to its end if its subscriber
+it started at once, then each step (adding, committing, and each hook as git
+starts it, read from git's trace2 events), then how it ended, and runs to its end if its subscriber
 leaves; `workspace-status` reports how the last one ended.
 
 | Method | What it does |

@@ -86,7 +86,7 @@
     "review.paths_shape": "Paths are a list of file names, relative to the workspace.",
     "review.step_adding": "Adding the changes",
     "review.step_committing": "Committing the changes",
-    "review.step_hooks": "Committing the changes; the repository's hooks run first: {hooks}",
+    "review.step_hook": "Running the repository's {hook} hook",
     "review.workspace_required": "Name the workspace by its id."
   }
 }

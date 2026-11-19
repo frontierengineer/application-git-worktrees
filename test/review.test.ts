@@ -5,7 +5,7 @@ import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path';
 import type { BaseApplicationContext, Failure, SubscriptionContext } from '../../application';
 import { registration } from '../host.ts';
-import { type CommitMessage, parseStatus } from '../src/review.ts';
+import { type CommitMessage, parseStatus, readTrace } from '../src/review.ts';
 import { mountedKey } from '../src/records.ts';
 import { fakeContext, makeRepository, sh } from './context.ts';
 
@@ -125,15 +125,38 @@ test('commit publishes that it started, then the commit, records how it ended, a
   assert.equal(after.lastCommit.state, 'failed');
 });
 
+test('each hook a commit runs is published as a step as it starts', async () => {
+  const { repository, commit } = setup();
+  writeFileSync(join(repository, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\necho "lint passed" >&2\n', { mode: 0o755 });
+  writeFileSync(join(repository, '.git', 'hooks', 'commit-msg'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  writeFileSync(join(repository, 'a.txt'), 'changed\n');
+  const messages = await commit({ workspaceId: 'ws-1', message: 'With hooks' });
+  assert.deepEqual((messages as CommitMessage[]).filter((message) => message.state === 'step').map((message) => (message as { step: string }).step), [
+    'Adding the changes',
+    'Committing the changes',
+    "Running the repository's pre-commit hook",
+    "Running the repository's commit-msg hook",
+  ]);
+  assert.equal((messages as CommitMessage[]).at(-1)?.state, 'committed');
+});
+
+test('git\'s trace lines are read for hooks and kept out of its standard error', () => {
+  assert.deepEqual(readTrace('{"event":"child_start","child_class":"hook","hook_name":"pre-commit"}'), { hook: 'pre-commit', trace: true });
+  assert.deepEqual(readTrace('{"event":"child_start","child_class":"?","argv":["git","maintenance"]}'), { hook: null, trace: true });
+  assert.deepEqual(readTrace('error: lint failed'), { hook: null, trace: false });
+});
+
 test('a commit a hook refuses is published as failed, in the hook\'s words', async () => {
   const { repository, commit } = setup();
   writeFileSync(join(repository, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\necho "lint failed in a.txt" >&2\nexit 1\n', { mode: 0o755 });
+  writeFileSync(join(repository, '.git', 'hooks', 'commit-msg'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   writeFileSync(join(repository, 'a.txt'), 'changed\n');
   const messages = await commit({ workspaceId: 'ws-1', message: 'Try' });
   assert.deepEqual(messages, [
     { state: 'started' },
     { state: 'step', step: 'Adding the changes' },
-    { state: 'step', step: "Committing the changes; the repository's hooks run first: pre-commit" },
+    { state: 'step', step: 'Committing the changes' },
+    { state: 'step', step: "Running the repository's pre-commit hook" },
     { state: 'failed', message: 'Git refused: lint failed in a.txt.' },
   ]);
 });
@@ -203,4 +226,23 @@ test('status is read from git\'s porcelain output, branch, upstream and conflict
     ],
   });
   assert.equal(parseStatus('## HEAD (no branch)\0').branch, null);
+});
+
+test('a read that runs past its deadline says what did not finish, and that trying again can help', async () => {
+  const record = { workspaceId: 'ws-1', name: 'task', branch: 'main', workerId: 'w1', slotDirectory: '/repo', repository: '/repo', workspaceProvisionerId: 'p', mountedAt: 5 };
+  const timeouts: number[] = [];
+  const context = {
+    translate: (token: string) => translations.en[token] ?? token,
+    store: { getJson: async (key: string) => ({ ok: true, value: key === mountedKey('ws-1') ? record : null }) },
+    workers: {
+      execute: async (_workerId: string, options: { timeoutMilliseconds: number }) => {
+        timeouts.push(options.timeoutMilliseconds);
+        return { ok: false, message: 'The command ran past 20000 ms and was killed.', retriable: true };
+      },
+    },
+  } as unknown as BaseApplicationContext;
+  const answer = await (registration.methods['workspace-status'] as { call: (context: BaseApplicationContext, input: Record<string, unknown>) => Promise<Failure> }).call(context, { workspaceId: 'ws-1' });
+  assert.deepEqual(timeouts, [20_000]);
+  assert.equal(answer.retriable, true);
+  assert.equal(answer.message, "git status did not finish on that worker: The command ran past 20000 ms and was killed. Try again in a moment; if it keeps happening, check the worker's disk and the repository there.");
 });

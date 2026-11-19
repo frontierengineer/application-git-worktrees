@@ -21,7 +21,7 @@ export type WorkspaceStatus = {
 export type Commit = { hash: string; shortHash: string; author: string; at: number; subject: string };
 
 // What commit-workspace publishes: `started` at once, a `step` as each part
-// begins, then its outcome.
+// begins (each hook its own), then its outcome.
 export type CommitMessage =
   | { state: 'started' }
   | { state: 'step'; step: string }
@@ -77,20 +77,56 @@ function joined(chunks: readonly Uint8Array[]): string {
   return chunks.map((chunk) => decoder.decode(chunk, { stream: true })).join('') + decoder.decode();
 }
 
+// git's trace2 events, which it writes to standard error when asked: each hook
+// it starts is a `child_start` event naming the hook. Every other line is
+// git's own standard error, kept for the message of a failure.
+export function readTrace(line: string): { hook: string | null; trace: boolean } {
+  if (!line.startsWith('{"event":')) return { hook: null, trace: false };
+  try {
+    const event = JSON.parse(line) as { event?: unknown; child_class?: unknown; hook_name?: unknown };
+    const hook = event.event === 'child_start' && event.child_class === 'hook' && typeof event.hook_name === 'string' ? event.hook_name : null;
+    return { hook, trace: true };
+  } catch {
+    return { hook: null, trace: false };
+  }
+}
+
+async function drainLines(stream: AsyncIterable<Uint8Array>, kept: string[], onHook: (hook: string) => Promise<void>): Promise<void> {
+  const decoder = new TextDecoder();
+  let pending = '';
+  const take = async (line: string) => {
+    const read = readTrace(line);
+    if (read.hook !== null) await onHook(read.hook);
+    if (!read.trace) kept.push(line);
+  };
+  for await (const chunk of stream) {
+    pending += decoder.decode(chunk, { stream: true });
+    let newline: number;
+    while ((newline = pending.indexOf('\n')) >= 0) {
+      await take(pending.slice(0, newline));
+      pending = pending.slice(newline + 1);
+    }
+  }
+  pending += decoder.decode();
+  if (pending !== '') await take(pending);
+}
+
 // A git command that may run past a call's wait, such as a commit running the
 // repository's hooks: spawned on the worker and followed to its exit, reached
-// again when the connection to it drops.
-async function gitLong(context: BaseApplicationContext, workspace: MountedWorkspace, args: string[]): Promise<Answer<string>> {
-  const spawned = await context.workers.spawn(workspace.workerId, { command: 'git', args, cwd: workspace.slotDirectory, environment: quiet, timeoutMilliseconds: commitTimeoutMilliseconds });
+// again when the connection to it drops. Each hook git starts is told to
+// `onHook` as it starts, read from git's trace2 events on standard error.
+async function gitLong(context: BaseApplicationContext, workspace: MountedWorkspace, args: string[], onHook: (hook: string) => Promise<void> = async () => undefined): Promise<Answer<string>> {
+  const environment = { ...quiet, GIT_TRACE2_EVENT: '2', GIT_TRACE2_EVENT_NESTING: '1' };
+  const spawned = await context.workers.spawn(workspace.workerId, { command: 'git', args, cwd: workspace.slotDirectory, environment, timeoutMilliseconds: commitTimeoutMilliseconds });
   if (!spawned.ok) return spawned;
   let running: SpawnedProcess = spawned.value;
   for (let attempt = 0; ; attempt += 1) {
     const stdout: Uint8Array[] = [];
-    const stderr: Uint8Array[] = [];
-    const [exited] = await Promise.all([running.exited, drain(running.stdout, stdout), drain(running.stderr, stderr)]);
+    const stderr: string[] = [];
+    const [exited] = await Promise.all([running.exited, drain(running.stdout, stdout), drainLines(running.stderr, stderr, onHook)]);
     if (exited.ok) {
       const out = joined(stdout);
-      if (exited.value.exitCode !== 0) return refused(context, out, joined(stderr), exited.value.exitCode);
+      if (exited.value.exitCode !== 0) return refused(context, out, stderr.join('\n'), exited.value.exitCode);
       return out;
     }
     if (exited.unavailable || !exited.retriable || attempt >= 5) return exited;
@@ -193,22 +229,6 @@ function paths(input: Record<string, unknown>): string[] | null {
   return input.paths as string[];
 }
 
-const commitHooks = ['pre-commit', 'prepare-commit-msg', 'commit-msg', 'post-commit'];
-
-// The commit hooks the workspace's repository runs, by name; none when they
-// cannot be read.
-async function hooksOf(context: BaseApplicationContext, workspace: MountedWorkspace): Promise<string[]> {
-  const directory = await git(context, workspace, ['rev-parse', '--git-path', 'hooks']);
-  if (typeof directory !== 'string') return [];
-  const found = await context.workers.execute(workspace.workerId, {
-    command: 'sh',
-    args: ['-c', 'for hook in "$@"; do [ -x "$0/$hook" ] && echo "$hook"; done; exit 0', directory.trim(), ...commitHooks],
-    cwd: workspace.slotDirectory,
-    timeoutMilliseconds: readTimeoutMilliseconds,
-  });
-  return found.ok ? found.value.stdout.split('\n').filter((hook) => commitHooks.includes(hook)) : [];
-}
-
 async function commit(context: BaseApplicationContext, workspace: MountedWorkspace, message: string, chosen: string[], step: (text: string) => Promise<void>): Promise<Answer<{ commit: string; files: number }>> {
   await step(t(context, 'review.step_adding'));
   const added = await gitLong(context, workspace, ['add', '-A', '--', ...(chosen.length > 0 ? chosen : ['.'])]);
@@ -217,9 +237,8 @@ async function commit(context: BaseApplicationContext, workspace: MountedWorkspa
   if (typeof staged !== 'string') return staged;
   const files = staged.split('\0').filter(Boolean).length;
   if (files === 0) return failure(t(context, 'review.nothing_to_commit'), false);
-  const hooks = await hooksOf(context, workspace);
-  await step(hooks.length > 0 ? t(context, 'review.step_hooks', { hooks: hooks.join(', ') }) : t(context, 'review.step_committing'));
-  const committed = await gitLong(context, workspace, ['commit', '--quiet', '-m', message]);
+  await step(t(context, 'review.step_committing'));
+  const committed = await gitLong(context, workspace, ['commit', '--quiet', '-m', message], (hook) => step(t(context, 'review.step_hook', { hook })));
   if (typeof committed !== 'string') return committed;
   const head = await git(context, workspace, ['rev-parse', 'HEAD']);
   if (typeof head !== 'string') return head;
@@ -227,8 +246,8 @@ async function commit(context: BaseApplicationContext, workspace: MountedWorkspa
 }
 
 // Commits as a publication, since the repository's hooks may run past a call's
-// wait: `started` at once, a step as it adds, then as it commits (naming the
-// hooks that run), then `committed` or `failed`. The commit runs to its
+// wait: `started` at once, a step as it adds, as it commits, and as each of
+// the repository's hooks starts, then `committed` or `failed`. The commit runs to its
 // end when the subscriber leaves, and its outcome is kept for workspace-status.
 export async function commitWorkspace(context: SubscriptionContext<CommitMessage>, input: Record<string, unknown>): Promise<Answer<void>> {
   const message = typeof input.message === 'string' ? input.message.trim() : '';
