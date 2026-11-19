@@ -29,15 +29,9 @@ const context = {
       calls.push({ method, input });
       switch (method) {
         case 'list-workspaces': return ok({ workspaces });
-        case 'workspace-status': return ok({ workspace: workspaces.find((entry) => entry.workspaceId === input.workspaceId), branch: input.workspaceId === 'ws-1' ? 'frontier/fix-login' : 'frontier/docs', upstream: null, ahead: 0, behind: 0, files: input.workspaceId === 'ws-1' ? files : [] });
+        case 'workspace-status': return ok({ workspace: workspaces.find((entry) => entry.workspaceId === input.workspaceId), branch: input.workspaceId === 'ws-1' ? 'frontier/fix-login' : 'frontier/docs', upstream: input.workspaceId === 'ws-1' ? 'origin/frontier/fix-login' : null, ahead: 1, behind: 0, files: input.workspaceId === 'ws-1' ? files : [], lastCommit: null });
         case 'workspace-log': return ok({ commits });
         case 'workspace-diff': return ok({ diff: 'diff --git a/src/login.ts b/src/login.ts\n--- a/src/login.ts\n+++ b/src/login.ts\n@@ -1,2 +1,3 @@\n await page.click(login);\n+await page.waitForURL("/home");\n expect(user).toBe(1);\n', truncated: false });
-        case 'commit-workspace': {
-          if (input.message === 'fail') return { ok: false, message: 'Git refused: Author identity unknown.', retriable: false };
-          const count = files.length;
-          files = [];
-          return ok({ commit: 'b'.repeat(40), files: count });
-        }
         case 'discard-changes': {
           files = files.filter((file) => !(input.paths as string[]).includes(file.path));
           return ok({ discarded: 1 });
@@ -45,7 +39,29 @@ const context = {
         default: return { ok: false, unavailable: true, message: 'No such method.' };
       }
     },
+    subscribe: async (_application: string, method: string, input: Record<string, unknown>, handler: (message: unknown) => void) => {
+      calls.push({ method, input });
+      if (method !== 'commit-workspace') return { ok: false, unavailable: true, message: 'No such method.' };
+      setTimeout(() => {
+        handler({ state: 'started' });
+        setTimeout(() => {
+          if (input.message === 'fail') {
+            handler({ state: 'failed', message: 'Git refused: Author identity unknown.' });
+            return;
+          }
+          const count = files.length;
+          files = [];
+          handler({ state: 'committed', commit: 'b'.repeat(40), files: count });
+        }, 50);
+      }, 10);
+      return ok({ unsubscribe() {} });
+    },
   },
 } as unknown as DesktopContext;
 
-Object.assign(window, { calls, mountView: () => registration.desktop.mount(context), setConfirm: (value: boolean) => (confirmAnswer = value) });
+Object.assign(window, {
+  calls,
+  mountView: () => registration.desktop.mount(context),
+  mountPanel: () => registration.panel.mount(context),
+  setConfirm: (value: boolean) => (confirmAnswer = value),
+});

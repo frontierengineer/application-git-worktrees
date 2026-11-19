@@ -26,7 +26,7 @@ import type {
 } from '../../application';
 import { GitError, git, gitOk, runGit } from './git.ts';
 import { failure, text } from './text.ts';
-import { type MountedWorkspace, mountedKey } from './records.ts';
+import { type MountedWorkspace, commitKey, mountedKey } from './records.ts';
 
 export interface Settings {
   repository: string;
@@ -453,6 +453,7 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
         await cleanSlot(directory);
         await forgetRecord(settings.repository, directory);
         await context.store.delete(mountedKey(input.workspaceId));
+        await context.store.delete(commitKey(input.workspaceId));
       } catch (error) {
         return gitFailure('error.unmount_failed', { path: directory }, error);
       }

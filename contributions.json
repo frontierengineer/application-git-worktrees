@@ -92,12 +92,12 @@
       {
         "id": "workspace-status",
         "title": "Workspace status",
-        "description": "What changed in a mounted git workspace. Input: workspaceId (string). Answers { workspace, branch, upstream, ahead, behind, files: [{ path, originalPath, kind, staged }] }, where kind is modified, added, deleted, renamed, copied, untracked, conflicted or type-changed."
+        "description": "What changed in a mounted git workspace. Input: workspaceId (string). Answers { workspace, branch, upstream, ahead, behind, files: [{ path, originalPath, kind, staged }], lastCommit }, where kind is modified, added, deleted, renamed, copied, untracked, conflicted or type-changed, and lastCommit is how the last commit-workspace in it ended ({ state: committing, at }, { state: committed, at, commit, files } or { state: failed, at, message }), or null."
       },
       {
         "id": "workspace-diff",
         "title": "Workspace diff",
-        "description": "One file's changes in a mounted git workspace against its last commit, as a unified diff; an untracked file shows as wholly added. Input: workspaceId and path (strings, the path relative to the workspace). Answers { diff, truncated }, cut at 400 KB."
+        "description": "One file's changes in a mounted git workspace against its last commit, as a unified diff; an untracked file shows as wholly added. Input: workspaceId and path (strings, the path relative to the workspace). Answers { diff, truncated, binary }, the diff cut at 400 KB, binary true when git shows no lines because the file is binary."
       },
       {
         "id": "workspace-log",
@@ -107,7 +107,7 @@
       {
         "id": "commit-workspace",
         "title": "Commit workspace",
-        "description": "Commits changes in a mounted git workspace to its branch, untracked files included, with the worker's own git identity and hooks. Input: workspaceId (string), message (string, required), paths (strings relative to the workspace; every change when left out). Answers { commit, files }."
+        "description": "Commits changes in a mounted git workspace to its branch, untracked files included, with the worker's own git identity and hooks. Input: workspaceId (string), message (string, required), paths (strings relative to the workspace; every change when left out). A subscription, since hooks can take a while: it publishes { state: started } at once, then { state: committed, commit, files } or { state: failed, message }, and ends. The commit runs to its end if the subscriber leaves, and workspace-status reports how it ended as lastCommit."
       },
       {
         "id": "discard-changes",
