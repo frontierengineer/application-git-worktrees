@@ -16,7 +16,7 @@ const commits = [{ hash: 'a'.repeat(40), shortHash: 'aaaaaaa', author: 'Claude',
 let confirmAnswer = true;
 
 const context = {
-  applicationId: 'github.com/frontierengineer/git-worktrees',
+  applicationId: 'github.com/frontierengineer/application-git-worktrees',
   translate: (token: string) => (translations.en as Record<string, string>)[token] ?? token,
   currentSurface: { id: 's', title: () => 'Laptop', type: 'workstation', language: () => 'en-US', display: () => null },
   surfacePreferences: { get: (_key: string, fallback?: unknown) => fallback ?? null, set: () => undefined, delete: () => undefined },

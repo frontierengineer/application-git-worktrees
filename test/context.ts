@@ -18,7 +18,7 @@ export function fakeContext(): { context: WorkspaceProvisionerContext; logs: Log
   mkdirSync(join(base, 'scratch'));
   const store = new Map<string, unknown>();
   const context = {
-    applicationId: 'github.com/frontierengineer/git-worktrees',
+    applicationId: 'github.com/frontierengineer/application-git-worktrees',
     currentWorker: { id: 'worker-1', title: () => 'Laptop', isConnected: () => true },
     store: {
       putJson: async (options: { key: string; value: unknown }) => {

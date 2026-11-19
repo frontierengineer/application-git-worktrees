@@ -5,7 +5,7 @@ import { text } from '../text.ts';
 import { fill, h, icon, style } from './dom.ts';
 import { css, fallbackCss, shared } from './styles.ts';
 
-const applicationId = 'github.com/frontierengineer/git-worktrees';
+const applicationId = 'github.com/frontierengineer/application-git-worktrees';
 const branchIcon = 'M6 4v12M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 8c0 5-6 4-11.5 8';
 const kindLetters: Record<ChangedFile['kind'], string> = { modified: 'M', added: 'A', deleted: 'D', renamed: 'R', copied: 'C', untracked: 'U', conflicted: '!', 'type-changed': 'T' };
 

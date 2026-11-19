@@ -1,5 +1,5 @@
 {
-  "id": "github.com/frontierengineer/git-worktrees",
+  "id": "github.com/frontierengineer/application-git-worktrees",
   "title": "Git worktrees",
   "color": "#e8590c",
   "description": "Gives each workspace its own git worktree and branch beside a repository on a worker, keeps its uncommitted work when it is unmounted, and shows what changed in it to review, commit or discard.",
