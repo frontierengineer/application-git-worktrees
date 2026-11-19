@@ -107,7 +107,7 @@
       {
         "id": "commit-workspace",
         "title": "Commit workspace",
-        "description": "Commits changes in a mounted git workspace to its branch, untracked files included, with the worker's own git identity and hooks. Input: workspaceId (string), message (string, required), paths (strings relative to the workspace; every change when left out). A subscription, since hooks can take a while: it publishes { state: started } at once, then { state: committed, commit, files } or { state: failed, message }, and ends. The commit runs to its end if the subscriber leaves, and workspace-status reports how it ended as lastCommit."
+        "description": "Commits changes in a mounted git workspace to its branch, untracked files included, with the worker's own git identity and hooks. Input: workspaceId (string), message (string, required), paths (strings relative to the workspace; every change when left out). A subscription, since hooks can take a while: it publishes { state: started } at once, then { state: step, step } as it adds the changes and as it commits (naming the repository's commit hooks that run), then { state: committed, commit, files } or { state: failed, message }, and ends. The commit runs to its end if the subscriber leaves, and workspace-status reports how it ended as lastCommit."
       },
       {
         "id": "discard-changes",

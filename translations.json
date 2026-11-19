@@ -73,6 +73,8 @@
     "kind.renamed": "Renamed",
     "kind.type-changed": "Type changed",
     "kind.untracked": "New, not yet committed",
+    "review.git_could_not_run": "{command} could not run on that worker: {reason}.",
+    "review.git_could_not_run_again": "{command} did not finish on that worker: {reason}. Try again in a moment; if it keeps happening, check the worker's disk and the repository there.",
     "review.git_failed": "Git refused: {reason}.",
     "review.git_stopped": "git stopped before it finished",
     "review.message_required": "Write a commit message.",
@@ -82,6 +84,9 @@
     "review.path_required": "Name the file, relative to the workspace.",
     "review.paths_required": "Name the files whose changes to discard.",
     "review.paths_shape": "Paths are a list of file names, relative to the workspace.",
+    "review.step_adding": "Adding the changes",
+    "review.step_committing": "Committing the changes",
+    "review.step_hooks": "Committing the changes; the repository's hooks run first: {hooks}",
     "review.workspace_required": "Name the workspace by its id."
   }
 }

@@ -34,7 +34,7 @@ function pathElement(path: string): HTMLElement {
   );
 }
 
-type Committing = { workspaceId: string; sawCommitting: boolean; subscription: Subscription | null };
+type Committing = { workspaceId: string; sawCommitting: boolean; subscription: Subscription | null; step: string };
 
 export class ChangesApp {
   private readonly context: DesktopContext | PanelContext;
@@ -171,7 +171,7 @@ export class ChangesApp {
   // Redraws only when what is shown changed, so a background refresh keeps
   // open diffs, their scroll and the focus where they are.
   private draw(force = false): void {
-    const shown = JSON.stringify([this.workspaces, [...this.statuses], [...this.workerTitles], this.selected, this.log, this.problem, this.loadProblem, this.notice, this.committing !== null]);
+    const shown = JSON.stringify([this.workspaces, [...this.statuses], [...this.workerTitles], this.selected, this.log, this.problem, this.loadProblem, this.notice, this.committing?.step ?? null]);
     if (!force && shown === this.drawn) return;
     this.drawn = shown;
     const t = this.t;
@@ -226,7 +226,7 @@ export class ChangesApp {
       h('frontier-scroll', {}, h('frontier-stack', { class: 'detail', padding: '4', gap: '5' },
         this.problem ? h('div', { role: 'alert' }, this.problem) : null,
         this.loadProblem ? h('div', { role: 'status', 'data-tone': 'danger' }, this.loadProblem) : null,
-        busy ? h('div', { role: 'status', 'data-tone': 'info' }, t('changes.committing')) : null,
+        busy ? h('div', { role: 'status', 'data-tone': 'info' }, this.committing?.step ? `${this.committing.step}.` : t('changes.committing')) : null,
         !busy && this.notice ? h('div', { role: 'status', 'data-tone': 'success' }, this.notice) : null,
         h('dl', {},
           h('dt', {}, t('changes.branch')), h('dd', {}, h('code', {}, status?.branch ?? workspace.branch)),
@@ -319,7 +319,7 @@ export class ChangesApp {
       this.message.focus();
       return;
     }
-    const committing: Committing = { workspaceId: workspace.workspaceId, sawCommitting: false, subscription: null };
+    const committing: Committing = { workspaceId: workspace.workspaceId, sawCommitting: false, subscription: null, step: '' };
     this.committing = committing;
     this.problem = '';
     this.notice = '';
@@ -327,7 +327,8 @@ export class ChangesApp {
     const subscribed = await this.context.methods.subscribe<CommitMessage>(this.context.applicationId, 'commit-workspace',
       { workspaceId: workspace.workspaceId, message: this.message.value },
       (message) => {
-        if (message.state !== 'started') this.finishCommit(message);
+        if (message.state === 'step') this.showStep(committing, message.step);
+        else if (message.state !== 'started') this.finishCommit(message);
       });
     if (!subscribed.ok) {
       this.finishCommit({ state: 'failed', message: subscribed.message });
@@ -337,7 +338,13 @@ export class ChangesApp {
     else subscribed.value.unsubscribe();
   }
 
-  private finishCommit(outcome: Exclude<CommitMessage, { state: 'started' }> | Exclude<CommitOutcome, { state: 'committing' }>): void {
+  private showStep(committing: Committing, step: string): void {
+    if (this.committing !== committing) return;
+    committing.step = step;
+    this.draw();
+  }
+
+  private finishCommit(outcome: Exclude<CommitMessage, { state: 'started' | 'step' }> | Exclude<CommitOutcome, { state: 'committing' }>): void {
     if (!this.committing) return;
     this.committing.subscription?.unsubscribe();
     this.committing = null;

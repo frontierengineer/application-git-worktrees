@@ -110,7 +110,7 @@ test('commit publishes that it started, then the commit, records how it ended, a
   const messages = await commit({ workspaceId: 'ws-1', message: 'Fix the login race' });
   assert.ok(Array.isArray(messages));
   const head = sh(repository, 'git', 'rev-parse', 'HEAD').trim();
-  assert.deepEqual(messages, [{ state: 'started' }, { state: 'committed', commit: head, files: 2 }]);
+  assert.deepEqual(messages, [{ state: 'started' }, { state: 'step', step: 'Adding the changes' }, { state: 'step', step: 'Committing the changes' }, { state: 'committed', commit: head, files: 2 }]);
   assert.ok(executed.some((run) => run.spawned && run.args[0] === 'commit'), 'the commit runs as a followed process, past a call\'s wait');
   assert.equal(sh(repository, 'git', 'status', '--porcelain').trim(), '');
   const status = await call<{ lastCommit: { state: string; commit: string; files: number; at: number } }>('workspace-status', { workspaceId: 'ws-1' });
@@ -120,7 +120,7 @@ test('commit publishes that it started, then the commit, records how it ended, a
   assert.equal(log.commits[0]?.author, 'Test');
   assert.ok((log.commits[0]?.at ?? 0) > Date.now() - 60_000);
   const nothing = await commit({ workspaceId: 'ws-1', message: 'again' });
-  assert.deepEqual(nothing, [{ state: 'started' }, { state: 'failed', message: 'There is nothing to commit. Every change is already committed.' }]);
+  assert.deepEqual(nothing, [{ state: 'started' }, { state: 'step', step: 'Adding the changes' }, { state: 'failed', message: 'There is nothing to commit. Every change is already committed.' }]);
   const after = await call<{ lastCommit: { state: string; message: string } }>('workspace-status', { workspaceId: 'ws-1' });
   assert.equal(after.lastCommit.state, 'failed');
 });
@@ -130,7 +130,12 @@ test('a commit a hook refuses is published as failed, in the hook\'s words', asy
   writeFileSync(join(repository, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\necho "lint failed in a.txt" >&2\nexit 1\n', { mode: 0o755 });
   writeFileSync(join(repository, 'a.txt'), 'changed\n');
   const messages = await commit({ workspaceId: 'ws-1', message: 'Try' });
-  assert.deepEqual(messages, [{ state: 'started' }, { state: 'failed', message: 'Git refused: lint failed in a.txt.' }]);
+  assert.deepEqual(messages, [
+    { state: 'started' },
+    { state: 'step', step: 'Adding the changes' },
+    { state: 'step', step: "Committing the changes; the repository's hooks run first: pre-commit" },
+    { state: 'failed', message: 'Git refused: lint failed in a.txt.' },
+  ]);
 });
 
 test('a worker with no git identity is told how to set one', async () => {
@@ -141,7 +146,7 @@ test('a worker with no git identity is told how to set one', async () => {
   sh(repository, 'git', 'config', '--unset', 'user.name');
   sh(repository, 'git', 'config', '--unset', 'user.email');
   const messages = await commit({ workspaceId: 'ws-1', message: 'Try' });
-  assert.deepEqual(messages, [{ state: 'started' }, { state: 'failed', message: translations.en['review.no_identity'] }]);
+  assert.deepEqual((messages as CommitMessage[]).at(-1), { state: 'failed', message: translations.en['review.no_identity'] });
 });
 
 test('commit can take only some files', async () => {
@@ -178,7 +183,7 @@ test('bad input is refused by field, and a workspace whose directory is gone say
   assert.equal((await commit({ workspaceId: 'ws-1', message: 'x', paths: [1] }) as Failure).field, 'paths');
   assert.equal((await commit({ workspaceId: 'unknown', message: 'x' }) as Failure).field, 'workspaceId');
   assert.equal((await call<Failure>('discard-changes', { workspaceId: 'ws-1' })).field, 'paths');
-  assert.match((await call<Failure>('workspace-status', { workspaceId: 'ws-gone' })).message, /does not exist on this worker/);
+  assert.match((await call<Failure>('workspace-status', { workspaceId: 'ws-gone' })).message, /^git status could not run on that worker: .* does not exist on this worker\.$/);
   const listed = await call<{ workspaces: { workspaceId: string }[] }>('list-workspaces');
   assert.deepEqual(listed.workspaces.map((workspace) => workspace.workspaceId), ['ws-gone', 'ws-1']);
 });

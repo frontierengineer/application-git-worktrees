@@ -44,6 +44,7 @@ const context = {
       if (method !== 'commit-workspace') return { ok: false, unavailable: true, message: 'No such method.' };
       setTimeout(() => {
         handler({ state: 'started' });
+        handler({ state: 'step', step: 'Committing the changes' });
         setTimeout(() => {
           if (input.message === 'fail') {
             handler({ state: 'failed', message: 'Git refused: the pre-commit hook failed.' });

@@ -55,9 +55,11 @@ workspace.
 
 The work is done by host methods that agents and other Applications call too,
 running git on the workspace's worker through the context. A read is cut at 20
-seconds, inside the 30 seconds a call waits. A commit runs the repository's
+seconds, inside the 30 seconds a call waits: the git is killed, and the answer
+says what did not finish and whether trying again can help. A commit runs the repository's
 hooks, which can take longer, so `commit-workspace` is a publication: it says
-it started at once, then how it ended, and runs to its end if its subscriber
+it started at once, then each step (adding, then committing, naming the hooks
+that run), then how it ended, and runs to its end if its subscriber
 leaves; `workspace-status` reports how the last one ended.
 
 | Method | What it does |
@@ -66,7 +68,7 @@ leaves; `workspace-status` reports how the last one ended.
 | `workspace-status` | A workspace's branch, upstream, and every changed file with its kind. |
 | `workspace-diff` | One file's changes against its last commit, untracked files included. |
 | `workspace-log` | The branch's latest commits. |
-| `commit-workspace` | A subscription: commits every change, or the given files, with a message, publishing `started`, then `committed` or `failed`. |
+| `commit-workspace` | A subscription: commits every change, or the given files, with a message, publishing `started`, each `step`, then `committed` or `failed`. |
 | `discard-changes` | Returns the given files to their last commit. |
 
 ## Configuration
