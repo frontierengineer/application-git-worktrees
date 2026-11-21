@@ -468,6 +468,7 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
     return mutex.run(settings.repository, async () => {
       try {
         const root = await canonical(settings.poolRoot);
+        await git(['worktree', 'prune'], { cwd: settings.repository });
         for (const worktree of await worktreesOf(settings.repository)) {
           if (worktree.branch !== branch) continue;
           if (!inside(root, worktree.path)) return failure(t('error.branch_elsewhere', { branch, path: worktree.path }), false);

@@ -168,6 +168,15 @@ test('remove deletes the branch and the saved work', async () => {
   assert.throws(() => sh(repository, 'git', 'rev-parse', '--verify', '--quiet', 'refs/frontier/wip/frontier/gone'));
 });
 
+test('remove deletes the branch of a workspace whose worktree directory is gone', async () => {
+  const { impl, repository } = provisioner();
+  const slot = slotOf(await impl.mount(mountInput(repository, 'lost')));
+  rmSync(slot.slotDirectory, { recursive: true, force: true });
+  assert.equal(await impl.remove!({ workspaceId: 'ws-lost', workspaceProvisioner: instance({ repository }), name: 'lost' }), undefined);
+  assert.throws(() => sh(repository, 'git', 'rev-parse', '--verify', '--quiet', 'refs/heads/frontier/lost'));
+  assert.ok(!sh(repository, 'git', 'worktree', 'list', '--porcelain').includes(slot.slotDirectory), 'the lost worktree is no longer registered');
+});
+
 test('checkSlot says present, gone only when the repository is healthy, and fails when it cannot tell', async () => {
   const { impl, base, repository } = provisioner();
   const slot = slotOf(await impl.mount(mountInput(repository, 'check')));

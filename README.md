@@ -22,7 +22,8 @@ a number of slots. Each slot is a git worktree in a pool beside the repository.
   commit under `refs/frontier/wip/<branch>`. It then cleans and detaches the
   worktree and returns it to the pool. The next mount of the name puts that work
   back as uncommitted changes. If saving fails, the workspace stays mounted.
-- **Remove** deletes the workspace's branch and its saved work.
+- **Remove** deletes the workspace's branch and its saved work, also when its
+  worktree's directory is gone.
 - **Check slot** says a worktree is gone only when the repository is readable
   and the worktree is not. When it cannot tell, it answers a failure.
 - **Provision** fills the pool up to its slot count with free, detached worktrees.
