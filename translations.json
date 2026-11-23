@@ -54,6 +54,7 @@
     "error.clone_failed": "Cloning {remote} into {repository} did not finish: {reason}. Check the URL and this worker's access to it, then try again.",
     "error.clone_target_busy": "{repository} holds files but is not a git repository, so nothing was cloned there. Set the repository to an empty or missing directory.",
     "error.empty_repository": "{repository} has no commits yet. Commit something to it, then try again.",
+    "error.git_missing": "git is not installed on this worker, or not on the PATH its Worker runs with. Git worktrees runs git for every workspace: install git there, then try again.",
     "error.list_failed": "Listing the worktrees of {repository} did not finish: {reason}.",
     "error.mount_failed": "Preparing a worktree for {name} in {repository} did not finish: {reason}. Try again.",
     "error.not_repository": "{repository} is not a git repository. Set the repository to a git checkout, or set a URL to clone from.",

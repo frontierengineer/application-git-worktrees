@@ -157,6 +157,24 @@ test('a repository that is not there is cloned from the configured remote, and o
   assert.equal(await impl.mount({ ...mountInput('', 'x'), workspaceProvisioner: instance({}) }).then((answer) => (answer as { field?: string }).field), 'repository');
 });
 
+test('with no git on the worker, mount and provision say so, before anything else is judged', async () => {
+  const { impl, base, repository } = provisioner();
+  const path = process.env.PATH;
+  process.env.PATH = join(base, 'no-git-here');
+  try {
+    const expected = {
+      ok: false,
+      message: 'git is not installed on this worker, or not on the PATH its Worker runs with. Git worktrees runs git for every workspace: install git there, then try again.',
+      retriable: false,
+    };
+    assert.deepEqual(await impl.mount(mountInput(repository, 'x')), expected);
+    assert.deepEqual(await impl.mount(mountInput(join(base, 'nowhere'), 'x')), expected);
+    assert.deepEqual(await impl.provision?.({ workspaceProvisioner: instance({ repository }), cap: 1, activeSlotDirectories: [] }), expected);
+  } finally {
+    process.env.PATH = path;
+  }
+});
+
 test('remove deletes the branch and the saved work', async () => {
   const { impl, repository } = provisioner();
   const slot = slotOf(await impl.mount(mountInput(repository, 'gone')));

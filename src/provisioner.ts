@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, rmdir, stat, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import type {
@@ -201,7 +201,16 @@ export function createGitWorktreeProvisioner(context: WorkspaceProvisionerContex
 
   const isRepository = async (path: string) => existsSync(path) && (await gitOk(['rev-parse', '--is-inside-work-tree'], { cwd: path, timeoutMilliseconds: checkTimeoutMilliseconds }));
 
+  // Frontier assumes git on a worker but never installs it, so the
+  // Provisioner says so itself before git's absence reads as anything else.
+  const gitMissing = async (): Promise<Failure | null> => {
+    const run = await runGit(['--version'], { cwd: tmpdir(), timeoutMilliseconds: checkTimeoutMilliseconds });
+    return run.code === null && /ENOENT/.test(run.stderr) ? failure(t('error.git_missing'), false) : null;
+  };
+
   async function ensureRepository(settings: Settings): Promise<Failure | null> {
+    const noGit = await gitMissing();
+    if (noGit) return noGit;
     if (await isRepository(settings.repository)) return null;
     if (settings.remote === '') {
       return failure(t('error.not_repository', { repository: settings.repository }), false, 'repository');
